@@ -18,7 +18,9 @@ from keras.models import Sequential
 from keras.layers.normalization import BatchNormalization
 """
 ################################
-
+#dataset
+import requests
+from io import BytesIO
 import json
 
 #nn model
@@ -27,6 +29,9 @@ import FaceDetectionClass
 from FaceDetectionClass import FaceDetectionModel
 from FaceDetectionClass import BaseModel
 from DataGenerator import DataGenerator
+
+from keras.layers import Input
+from keras.models import Model
 
 #image preprocessing
 from keras.preprocessing.image import load_img
@@ -169,6 +174,8 @@ def DataPreprocess(tragetHight,targetWidth,trainSize, validationSize):
         i=i+1
     return img_batches,rectangles    
 
+#def Train (baseModel, rpnModel, classiferModel):
+
 if __name__ == '__main__':
     tragetHight = 224
     targetWidth = 224
@@ -179,10 +186,31 @@ if __name__ == '__main__':
           'batch_size': 64,
           'n_channels': 1,
           }
-    dModel = FaceDetectionModel().getBaseModelInstance(BaseModel.VGG16)  
-    training_generator = DataGenerator(img_batches['train'], rectangles, **params)
+    fHelper = FaceDetectionModel()
+    baseMod = fHelper.getBaseModelInstance(BaseModel.VGG16,"imagenet") 
+    num_of_anchros = 9
+    input_shape_img = (None, None, 3)
+    img_input = Input(shape=input_shape_img)
 
-    dModel.fit_generator(generator=training_generator)
+    baseMod.summary()
+    rpn = fHelper.getRpnModel(baseMod,num_of_anchros)
+    rpnModel = Model(img_input,rpn[:2])
+    
+    roi_input = Input(shape= (None,4))  
+    num_of_rois = 100
+    classifier = fHelper.getDetectorClassifier(baseMod,roi_input,num_of_rois,2)
+
+    model_classifier = Model([img_input, roi_input], classifier)
+
+    # this is a model that holds both the RPN and the classifier, used to load/save weights for the models
+    model_all = Model([img_input, roi_input], rpn[:2] + classifier)
+
+
+
+    #train base model alone ??
+    ######################################
+    #training_generator = DataGenerator(img_batches['train'], rectangles, **params)  
+    #dModel.fit_generator(generator=training_generator)
                         #     dModel.fit_generator(generator=training_generator,
                     # use_multiprocessing=True,
                     # workers=6,steps_per_epoch = 1)
